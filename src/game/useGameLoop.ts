@@ -243,17 +243,38 @@ export const useGameLoop = () => {
       }
 
       // Generate more platforms as player climbs
-      const highestPlatformY = Math.min(...platforms.map(p => p.y));
-      const cameraTop = -cameraY; // World Y coordinate at top of screen
-      
-      if (highestPlatformY > cameraTop - 500) {
-        const highestFloor = Math.max(...platforms.map(p => p.floor));
-        platforms = generatePlatforms(highestFloor, 10, platforms);
+      // Only generate if we have platforms and need more above
+      if (platforms.length > 0 && platforms.length < 50) {
+        const highestPlatformY = Math.min(...platforms.map(p => p.y));
+        const visibleTop = -cameraY;
+        
+        // Generate new platforms when the highest one is getting close to visible area
+        if (highestPlatformY > visibleTop - 400) {
+          const highestFloor = Math.max(...platforms.map(p => p.floor));
+          const newPlatforms: Platform[] = [];
+          let currentY = highestPlatformY;
+          
+          for (let i = 0; i < 8; i++) {
+            const width = MIN_PLATFORM_WIDTH + Math.random() * (MAX_PLATFORM_WIDTH - MIN_PLATFORM_WIDTH);
+            const x = Math.random() * (GAME_WIDTH - width);
+            const gap = PLATFORM_GAP_MIN + Math.random() * (PLATFORM_GAP_MAX - PLATFORM_GAP_MIN);
+            currentY -= gap;
+            
+            newPlatforms.push({
+              id: Date.now() + i + Math.random(),
+              x,
+              y: currentY,
+              width,
+              floor: highestFloor + i + 1,
+            });
+          }
+          platforms = [...platforms, ...newPlatforms];
+        }
       }
 
-      // Remove platforms that are far below the screen
-      const cameraBottom = -cameraY + GAME_HEIGHT;
-      platforms = platforms.filter(p => p.y < cameraBottom + 200);
+      // Remove platforms that are far below the screen (cleanup)
+      const visibleBottom = -cameraY + GAME_HEIGHT;
+      platforms = platforms.filter(p => p.y < visibleBottom + 300);
 
       // Game over - player fell below the visible screen
       const playerBottomScreenY = newPlayer.y + newPlayer.height + cameraY;
