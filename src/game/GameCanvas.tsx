@@ -41,38 +41,43 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
     // Draw brick pattern background
+    // cameraY is positive when scrolled up, so we subtract it to move bricks down
     const brickWidth = 50;
     const brickHeight = 25;
-    const startY = Math.floor(cameraY / brickHeight) * brickHeight;
+    const worldOffsetY = -cameraY; // Convert camera to world offset
+    const startBrickY = Math.floor(worldOffsetY / brickHeight) * brickHeight;
     
-    for (let y = startY; y < cameraY + GAME_HEIGHT + brickHeight; y += brickHeight) {
-      const row = Math.floor(y / brickHeight);
+    for (let worldY = startBrickY; worldY < worldOffsetY + GAME_HEIGHT + brickHeight; worldY += brickHeight) {
+      const screenY = worldY + cameraY; // Convert world to screen
+      const row = Math.floor(worldY / brickHeight);
       const offset = row % 2 === 0 ? 0 : brickWidth / 2;
       
       for (let x = -brickWidth; x < GAME_WIDTH + brickWidth; x += brickWidth) {
-        const screenY = y - cameraY;
         ctx.fillStyle = (row + Math.floor((x + offset) / brickWidth)) % 2 === 0 ? COLORS.brickDark : COLORS.brickLight;
         ctx.fillRect(x + offset, screenY, brickWidth - 2, brickHeight - 2);
       }
     }
 
-    // Draw floor
-    const floorY = GAME_HEIGHT - FLOOR_HEIGHT - cameraY;
-    if (floorY < GAME_HEIGHT) {
+    // Draw floor (in world coordinates, converted to screen)
+    const floorWorldY = GAME_HEIGHT - FLOOR_HEIGHT;
+    const floorScreenY = floorWorldY + cameraY;
+    
+    if (floorScreenY < GAME_HEIGHT + 100) {
       ctx.fillStyle = COLORS.floorDark;
-      ctx.fillRect(0, floorY, GAME_WIDTH, FLOOR_HEIGHT + 100);
+      ctx.fillRect(0, floorScreenY, GAME_WIDTH, FLOOR_HEIGHT + 500);
       
       // Stone pattern on floor
       ctx.fillStyle = COLORS.floor;
       for (let x = 0; x < GAME_WIDTH; x += 40) {
-        ctx.fillRect(x + 2, floorY + 2, 36, 20);
-        ctx.fillRect(x + 22, floorY + 24, 36, 20);
+        ctx.fillRect(x + 2, floorScreenY + 2, 36, 20);
+        ctx.fillRect(x + 22, floorScreenY + 24, 36, 20);
       }
     }
 
-    // Draw platforms
+    // Draw platforms (world coordinates -> screen coordinates)
     for (const platform of platforms) {
-      const screenY = platform.y - cameraY;
+      const screenY = platform.y + cameraY; // Convert world Y to screen Y
+      
       if (screenY < GAME_HEIGHT + 50 && screenY > -50) {
         // Platform shadow
         ctx.fillStyle = COLORS.platformShadow;
@@ -94,17 +99,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
         ctx.fillRect(platform.x + 4, screenY + 2, platform.width - 8, 3);
 
         // Floor number
-        if (platform.floor % 5 === 0) {
-          ctx.fillStyle = '#64748b';
-          ctx.font = 'bold 10px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText(platform.floor.toString(), platform.x + platform.width / 2, screenY + 12);
-        }
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(platform.floor.toString(), platform.x + platform.width / 2, screenY + 12);
       }
     }
 
-    // Draw player
-    const screenPlayerY = player.y;
+    // Draw player (world coordinates -> screen coordinates)
+    const playerScreenY = player.y + cameraY;
     const facingRight = player.direction === 'right' || (player.direction === 'idle' && player.vx >= 0);
     
     ctx.save();
@@ -119,7 +122,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
     ctx.beginPath();
     ctx.ellipse(
       player.x + player.width / 2,
-      screenPlayerY + player.height - 15,
+      playerScreenY + player.height - 15,
       12,
       18,
       0,
@@ -131,51 +134,51 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
     // Head
     ctx.fillStyle = COLORS.playerFace;
     ctx.beginPath();
-    ctx.arc(player.x + player.width / 2, screenPlayerY + 18, 12, 0, Math.PI * 2);
+    ctx.arc(player.x + player.width / 2, playerScreenY + 18, 12, 0, Math.PI * 2);
     ctx.fill();
 
     // Hat (blue beanie)
     ctx.fillStyle = COLORS.playerHat;
     ctx.beginPath();
-    ctx.ellipse(player.x + player.width / 2, screenPlayerY + 12, 14, 10, 0, 0, Math.PI * 2);
+    ctx.ellipse(player.x + player.width / 2, playerScreenY + 12, 14, 10, 0, 0, Math.PI * 2);
     ctx.fill();
     
     // Hat tip
     ctx.beginPath();
-    ctx.moveTo(player.x + player.width / 2 + 8, screenPlayerY + 5);
+    ctx.moveTo(player.x + player.width / 2 + 8, playerScreenY + 5);
     ctx.quadraticCurveTo(
       player.x + player.width / 2 + 20,
-      screenPlayerY - 5,
+      playerScreenY - 5,
       player.x + player.width / 2 + 15,
-      screenPlayerY + 8
+      playerScreenY + 8
     );
     ctx.fill();
 
     // Eyes
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.arc(player.x + player.width / 2 + 3, screenPlayerY + 18, 2, 0, Math.PI * 2);
+    ctx.arc(player.x + player.width / 2 + 3, playerScreenY + 18, 2, 0, Math.PI * 2);
     ctx.fill();
 
     // Legs animation
     const legOffset = player.isJumping ? 5 : Math.sin(Date.now() / 100) * 3 * Math.abs(player.vx);
     ctx.fillStyle = '#1e3a8a';
-    ctx.fillRect(player.x + 8, screenPlayerY + player.height - 12, 6, 12);
-    ctx.fillRect(player.x + player.width - 14, screenPlayerY + player.height - 12 + legOffset, 6, 12);
+    ctx.fillRect(player.x + 8, playerScreenY + player.height - 12, 6, 12);
+    ctx.fillRect(player.x + player.width - 14, playerScreenY + player.height - 12 + legOffset, 6, 12);
 
     ctx.restore();
 
     // Draw combo text
     if (gameState.combo > 1) {
       ctx.save();
-      ctx.font = 'bold 24px Bangers, sans-serif';
+      ctx.font = 'bold 28px Bangers, sans-serif';
       ctx.fillStyle = '#fbbf24';
       ctx.strokeStyle = '#000';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 4;
       ctx.textAlign = 'center';
       const comboText = `${gameState.combo}x COMBO!`;
-      ctx.strokeText(comboText, GAME_WIDTH / 2, 100);
-      ctx.fillText(comboText, GAME_WIDTH / 2, 100);
+      ctx.strokeText(comboText, GAME_WIDTH / 2, 120);
+      ctx.fillText(comboText, GAME_WIDTH / 2, 120);
       ctx.restore();
     }
   }, [gameState]);
