@@ -23,6 +23,15 @@ import {
   COMBO_TIMEOUT,
   COMBO_MULTIPLIER,
 } from './constants';
+import {
+  playJumpSound,
+  playSuperJumpSound,
+  playLandSound,
+  playScoreSound,
+  playComboSound,
+  playGameOverSound,
+  initAudio,
+} from '@/lib/sounds';
 
 const generatePlatforms = (startFloor: number, count: number, existingPlatforms: Platform[] = []): Platform[] => {
   const platforms: Platform[] = [...existingPlatforms];
@@ -90,11 +99,22 @@ export const useGameLoop = () => {
   const lastTimeRef = useRef<number>(0);
   const jumpPressedRef = useRef(false);
 
+  // Sound event flags — set inside state updater, read outside
+  const soundEventsRef = useRef<{
+    jump: boolean;
+    superJump: boolean;
+    land: boolean;
+    score: boolean;
+    combo: number; // 0 = no combo sound, >0 = combo count
+    gameOver: boolean;
+  }>({ jump: false, superJump: false, land: false, score: false, combo: 0, gameOver: false });
+
   const setControls = useCallback((controls: Partial<TouchControls>) => {
     controlsRef.current = { ...controlsRef.current, ...controls };
   }, []);
 
   const startGame = useCallback(() => {
+    initAudio();
     lastTimeRef.current = 0;
     jumpPressedRef.current = false;
     setGameState(prev => ({
@@ -108,6 +128,9 @@ export const useGameLoop = () => {
     if (!lastTimeRef.current) lastTimeRef.current = timestamp;
     const deltaTime = Math.min((timestamp - lastTimeRef.current) / 16.67, 2);
     lastTimeRef.current = timestamp;
+
+    // Reset sound events for this frame
+    soundEventsRef.current = { jump: false, superJump: false, land: false, score: false, combo: 0, gameOver: false };
 
     setGameState(prev => {
       if (!prev.isPlaying || prev.gameOver) return prev;
@@ -140,10 +163,16 @@ export const useGameLoop = () => {
       if (controls.jump && !newPlayer.isJumping && !jumpPressedRef.current) {
         const speed = Math.abs(newPlayer.vx);
         // Higher speed = higher jump
-        const jumpForce = speed > MAX_SPEED * 0.7 ? SUPER_JUMP_FORCE : JUMP_FORCE;
+        const isSuper = speed > MAX_SPEED * 0.7;
+        const jumpForce = isSuper ? SUPER_JUMP_FORCE : JUMP_FORCE;
         newPlayer.vy = jumpForce;
         newPlayer.isJumping = true;
         jumpPressedRef.current = true;
+        if (isSuper) {
+          soundEventsRef.current.superJump = true;
+        } else {
+          soundEventsRef.current.jump = true;
+        }
       }
       
       if (!controls.jump) {
@@ -210,12 +239,15 @@ export const useGameLoop = () => {
       // Update combo and score when landing on a higher platform
       if (landedFloor > 0 && landedFloor > newPlayer.lastFloor) {
         const floorsJumped = landedFloor - newPlayer.lastFloor;
+        soundEventsRef.current.land = true;
         if (floorsJumped > 1) {
           combo += floorsJumped;
           comboTimer = COMBO_TIMEOUT;
           score += floorsJumped * COMBO_MULTIPLIER * combo;
+          soundEventsRef.current.combo = combo;
         } else {
           score += 10;
+          soundEventsRef.current.score = true;
         }
         newPlayer.lastFloor = landedFloor;
         floor = Math.max(floor, landedFloor);
@@ -279,6 +311,9 @@ export const useGameLoop = () => {
       // Game over - player fell below the visible screen
       const playerBottomScreenY = newPlayer.y + newPlayer.height + cameraY;
       const gameOver = playerBottomScreenY > GAME_HEIGHT + 100;
+      if (gameOver && !prev.gameOver) {
+        soundEventsRef.current.gameOver = true;
+      }
 
       // Update high score
       let highScore = prev.highScore;
@@ -300,6 +335,18 @@ export const useGameLoop = () => {
         comboTimer,
       };
     });
+
+    // Play sounds based on events from this frame
+    const events = soundEventsRef.current;
+    if (events.gameOver) {
+      playGameOverSound();
+    } else {
+      if (events.superJump) playSuperJumpSound();
+      else if (events.jump) playJumpSound();
+      if (events.combo > 0) playComboSound(events.combo);
+      else if (events.score) playScoreSound();
+      else if (events.land) playLandSound();
+    }
 
     animationFrameRef.current = requestAnimationFrame(gameLoop);
   }, []);

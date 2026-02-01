@@ -1,13 +1,21 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useGameLoop } from './useGameLoop';
 import { GameCanvas } from './GameCanvas';
 import { TouchControls } from './TouchControls';
 import { GameUI } from './GameUI';
 import { GameOver } from './GameOver';
-import { StartScreen } from './StartScreen';
 
 export const IcyTowerGame: React.FC = () => {
   const { gameState, setControls, startGame } = useGameLoop();
+  const hasAutoStarted = useRef(false);
+
+  // Auto-start the game on mount
+  useEffect(() => {
+    if (!hasAutoStarted.current) {
+      hasAutoStarted.current = true;
+      startGame();
+    }
+  }, [startGame]);
 
   // Keyboard controls for testing
   useEffect(() => {
@@ -62,11 +70,6 @@ export const IcyTowerGame: React.FC = () => {
       <div className="absolute inset-0">
         <GameCanvas gameState={gameState} />
       </div>
-
-      {/* Start Screen */}
-      {!gameState.isPlaying && !gameState.gameOver && (
-        <StartScreen highScore={gameState.highScore} onStart={startGame} />
-      )}
 
       {/* Game UI (score, floor) */}
       {gameState.isPlaying && !gameState.gameOver && (
