@@ -4,6 +4,7 @@ import { GameCanvas } from './GameCanvas';
 import { TouchControls } from './TouchControls';
 import { GameUI } from './GameUI';
 import { GameOver } from './GameOver';
+import { initAudio } from '@/lib/sounds';
 
 export const IcyTowerGame: React.FC = () => {
   const { gameState, setControls, startGame } = useGameLoop();
@@ -16,6 +17,24 @@ export const IcyTowerGame: React.FC = () => {
       startGame();
     }
   }, [startGame]);
+
+  // Resume audio on first user interaction (browser autoplay policy)
+  useEffect(() => {
+    const resumeAudio = () => {
+      initAudio();
+      window.removeEventListener('keydown', resumeAudio);
+      window.removeEventListener('touchstart', resumeAudio);
+      window.removeEventListener('mousedown', resumeAudio);
+    };
+    window.addEventListener('keydown', resumeAudio);
+    window.addEventListener('touchstart', resumeAudio);
+    window.addEventListener('mousedown', resumeAudio);
+    return () => {
+      window.removeEventListener('keydown', resumeAudio);
+      window.removeEventListener('touchstart', resumeAudio);
+      window.removeEventListener('mousedown', resumeAudio);
+    };
+  }, []);
 
   // Keyboard controls for testing
   useEffect(() => {
